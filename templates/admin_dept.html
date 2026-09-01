@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Department Operations Console</h2>
+<p style="color: var(--text-muted); margin-bottom: 1.5rem;">Managing Tickets for: <strong>{{ current_user.department or 'All Departments' }}</strong></p>
+
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>Ticket ID</th>
+                <th>Asset ID</th>
+                <th>Category</th>
+                <th>AI Severity</th>
+                <th>Supervisory Escalation</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for issue in issues %}
+            <tr>
+                <td><strong>{{ issue.ticket_id }}</strong></td>
+                <td>{{ issue.govt_asset_id }}</td>
+                <td>{{ issue.issue_type }}</td>
+                <td><span class="badge badge-critical">{{ issue.ai_severity }}</span></td>
+                <td>{{ 'YES (Escalated)' if issue.escalated_to_superior else 'No' }}</td>
+                <td><span class="badge badge-{{ issue.status.lower().replace(' ', '-') }}">{{ issue.status }}</span></td>
+                <td>
+                    <form action="{{ url_for('update_issue_status', issue_id=issue.id) }}" method="POST" style="flex-direction: row; gap: 0.3rem;">
+                        <select name="status" style="padding: 0.2rem;">
+                            <option value="New" {% if issue.status == 'New' %}selected{% endif %}>New</option>
+                            <option value="Pending" {% if issue.status == 'Pending' %}selected{% endif %}>Pending</option>
+                            <option value="In Progress" {% if issue.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                            <option value="Solved" {% if issue.status == 'Solved' %}selected{% endif %}>Solved</option>
+                        </select>
+                        <label style="font-size: 0.75rem; display: flex; align-items: center; gap: 0.2rem;">
+                            <input type="checkbox" name="escalated_to_superior" {% if issue.escalated_to_superior %}checked{% endif %}> Escalate
+                        </label>
+                        <button type="submit" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">Save</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7">No active cases registered under this operational scope.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

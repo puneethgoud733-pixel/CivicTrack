@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card" style="max-width: 650px; margin: 0 auto;">
+    <h2>Report Public Asset Maintenance / Issue</h2>
+    <form method="POST" enctype="multipart/form-data" style="margin-top: 1.5rem;">
+        <div class="form-group">
+            <label>Asset Identifier / Name</label>
+            <input type="text" name="asset_name" placeholder="e.g., Transformer Unit #42, Main Road Pothole" required>
+        </div>
+        
+        <div class="form-group">
+            <label>Responsible Department</label>
+            <select name="asset_category" required>
+                <option value="Roads">Roads & Infrastructure</option>
+                <option value="Electricity">Electrical & Streetlights</option>
+                <option value="Water">Water Mains & Drainage</option>
+                <option value="Sanitation">Sanitation Facilities</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Location & Address</label>
+            <input type="text" id="location_address" name="location_address" placeholder="e.g., 5th Cross Junction, Ward 8" required>
+            <button type="button" onclick="getLocation()" style="margin-top: 0.5rem; background: var(--surface); border: 1px solid var(--border); font-size: 0.85rem;">📍 Geo-Tag Current GPS Coordinates</button>
+            <input type="hidden" id="latitude" name="latitude">
+            <input type="hidden" id="longitude" name="longitude">
+            <small id="geo-status" style="color: var(--text-muted);"></small>
+        </div>
+
+        <div class="form-group">
+            <label>Upload Asset Photo Proof</label>
+            <input type="file" name="image" accept="image/*" required>
+        </div>
+
+        <div class="form-group">
+            <label>Issue Description</label>
+            <textarea name="description" rows="4" placeholder="Detail the damage, safety hazard, or maintenance needed..." required></textarea>
+        </div>
+
+        <button type="submit">Publish Asset Incident Report</button>
+    </form>
+</div>
+
+<script>
+function getLocation() {
+    const status = document.getElementById('geo-status');
+    if (navigator.geolocation) {
+        status.textContent = "Acquiring GPS Signal...";
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                document.getElementById('latitude').value = pos.coords.latitude;
+                document.getElementById('longitude').value = pos.coords.longitude;
+                status.textContent = `Coordinates Linked: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+            },
+            () => { status.textContent = "Location access denied."; }
+        );
+    }
+}
+</script>
+{% endblock %}

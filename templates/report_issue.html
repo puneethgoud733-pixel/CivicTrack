@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card" style="max-width: 700px; margin: 0 auto;">
+    <h2>Log Asset Hazard / Incident Report</h2>
+    <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem;">Upload evidence and GPS parameters for official municipal routing.</p>
+
+    <form method="POST" enctype="multipart/form-data">
+        <div class="form-group">
+            <label>Government Asset Property Tag / ID</label>
+            <input type="text" name="govt_asset_id" placeholder="e.g., GOVT-SL-88492, WATER-MN-029" required>
+        </div>
+
+        <div class="form-group">
+            <label>Issue Type / Category</label>
+            <select name="issue_type" required>
+                <option value="Streetlights & Electrical">Streetlights / Faulty Luminaire / Dark Hazard</option>
+                <option value="Drainage & Sewage overflow">Drainage / Sewage Blockage / Waterlogging</option>
+                <option value="Garbage & Sanitation">Solid Garbage Accumulation / Waste Dump</option>
+                <option value="Roads & Potholes">Road Damage / Hazardous Potholes</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Responsible Municipal Department</label>
+            <select name="department" required>
+                <option value="Electrical & Streetlights">Electrical & Streetlights Department</option>
+                <option value="Sanitation & Waste">Sanitation & Public Health Department</option>
+                <option value="Water & Drainage">Water Supply & Drainage Department</option>
+                <option value="Roads & Public Infrastructure">Roads & Infrastructure Department</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Location & Near Places / Landmarks</label>
+            <input type="text" name="location_address" placeholder="Address / Ward Number" required>
+            <input type="text" name="near_landmarks" placeholder="Near Landmark (e.g., Near Ward Office, Govt School)">
+            <button type="button" onclick="getLocation()" style="margin-top: 0.4rem; background: var(--bg); color: var(--text); border: 1px solid var(--border);">📍 Attach GPS Coordinate Parameters</button>
+            <input type="hidden" id="latitude" name="latitude">
+            <input type="hidden" id="longitude" name="longitude">
+            <small id="geo-status" style="color: var(--text-muted);"></small>
+        </div>
+
+        <div class="form-group">
+            <label>Upload Photographic Evidence (Required for AI Vision Scan)</label>
+            <input type="file" name="image" accept="image/*" required>
+        </div>
+
+        <div class="form-group">
+            <label>Detailed Incident Description</label>
+            <textarea name="description" rows="4" placeholder="Detail the hazard severity, duration, and safety threat..." required></textarea>
+        </div>
+
+        <button type="submit">Submit Official Report</button>
+    </form>
+</div>
+
+<script>
+function getLocation() {
+    const status = document.getElementById('geo-status');
+    if (navigator.geolocation) {
+        status.textContent = "Querying GPS Satellite link...";
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                document.getElementById('latitude').value = pos.coords.latitude;
+                document.getElementById('longitude').value = pos.coords.longitude;
+                status.textContent = `Coordinates Attached: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+            },
+            () => { status.textContent = "GPS Access Denied."; }
+        );
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="glass-card p-4">
+            <h3 class="mb-3">Submit Hazard Report</h3>
+            <form method="POST">
+                <div class="mb-3">
+                    <label class="form-label">Incident Title</label>
+                    <input type="text" name="title" class="form-control bg-dark text-white border-secondary" placeholder="e.g. Broken Water Pipe" required>
+                </div>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Category</label>
+                        <select name="category" class="form-select bg-dark text-white border-secondary" required>
+                            <option value="Roads & Potholes">Roads & Potholes</option>
+                            <option value="Power Grid">Power Grid</option>
+                            <option value="Water Supply">Water Supply</option>
+                            <option value="Sanitation">Sanitation</option>
+                            <option value="Public Safety">Public Safety</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Location Address</label>
+                        <input type="text" name="location" class="form-control bg-dark text-white border-secondary" placeholder="Address or Landmark" required>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Pin Location on Map</label>
+                    <div id="map"></div>
+                    <input type="hidden" name="latitude" id="lat">
+                    <input type="hidden" name="longitude" id="lng">
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Detailed Description</label>
+                    <textarea name="description" class="form-control bg-dark text-white border-secondary" rows="3" required></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-info text-white w-100 fw-bold">Submit Hazard Report</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const map = L.map('map').setView([17.3850, 78.4867], 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    let marker;
+    map.on('click', function(e) {
+        document.getElementById('lat').value = e.latlng.lat;
+        document.getElementById('lng').value = e.latlng.lng;
+        if (marker) {
+            marker.setLatLng(e.latlng);
+        } else {
+            marker = L.marker(e.latlng).addTo(map);
+        }
+    });
+</script>
+{% endblock %}
