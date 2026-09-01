@@ -32,9 +32,39 @@ def init_db():
     """Create database tables if they don't exist"""
     with app.app_context():
         try:
+            # Create all tables
             db.create_all()
+            print("✓ Database tables created/verified")
+            
+            # Verify Issue table has all AI columns
+            from sqlalchemy import inspect
+            inspector = inspect(db.engine)
+            columns = [col['name'] for col in inspector.get_columns('issue')]
+            
+            required_cols = ['ai_confidence', 'ai_reasoning', 'ai_recommendations']
+            missing_cols = [col for col in required_cols if col not in columns]
+            
+            if missing_cols:
+                print(f"⚠️ Missing columns: {missing_cols}")
+                # Try to add missing columns
+                for col in missing_cols:
+                    try:
+                        if col == 'ai_confidence':
+                            db.engine.execute('ALTER TABLE issue ADD COLUMN ai_confidence FLOAT DEFAULT 0.0')
+                        elif col == 'ai_reasoning':
+                            db.engine.execute('ALTER TABLE issue ADD COLUMN ai_reasoning TEXT')
+                        elif col == 'ai_recommendations':
+                            db.engine.execute('ALTER TABLE issue ADD COLUMN ai_recommendations TEXT')
+                        print(f"✓ Added column: {col}")
+                    except Exception as e:
+                        print(f"Could not add {col}: {e}")
+            else:
+                print("✓ All AI columns present")
+                
         except Exception as e:
-            print(f"Database initialization error: {e}")
+            print(f"❌ Database initialization error: {e}")
+            import traceback
+            traceback.print_exc()
 
 # Call init_db on startup
 init_db()
