@@ -43,9 +43,12 @@ def init_db():
         except Exception as e:
             print(f"Database initialization error: {e}")
 
-# Call init_db on startup
+# Call init_db on startup (only if DATABASE_URL is set)
 try:
-    init_db()
+    if database_url:
+        init_db()
+    else:
+        print("WARNING: DATABASE_URL not set, skipping init_db")
 except Exception as e:
     print(f"Database init failed on startup: {e}")
 
