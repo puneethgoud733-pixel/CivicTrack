@@ -75,7 +75,10 @@ def init_db():
             traceback.print_exc()
 
 # Call init_db on startup
-init_db()
+try:
+    init_db()
+except Exception as e:
+    print(f"⚠️ Database init failed on startup: {e}")
 
 # Models
 class User(UserMixin, db.Model):
@@ -358,6 +361,16 @@ def get_system_insights():
     )
     
     return jsonify(insights)
+
+# Error handlers
+@app.errorhandler(404)
+def not_found(error):
+    return render_template('error.html', code=404, message='Page not found'), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    return render_template('error.html', code=500, message='Internal server error. Please try again later.'), 500
 
 if __name__ == '__main__':
     with app.app_context():
