@@ -27,6 +27,18 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
+# Initialize database on app startup
+def init_db():
+    """Create database tables if they don't exist"""
+    with app.app_context():
+        try:
+            db.create_all()
+        except Exception as e:
+            print(f"Database initialization error: {e}")
+
+# Call init_db on startup
+init_db()
+
 # Models
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
