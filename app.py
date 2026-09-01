@@ -333,8 +333,15 @@ def admin_dept():
     if current_user.role not in ['Admin', 'SuperAdmin']:
         flash('Access restricted to Department Admins.', 'danger')
         return redirect(url_for('dashboard'))
-    
-    issues = Issue.query.order_by(Issue.created_at.desc()).all()
+
+    if current_user.role == 'SuperAdmin':
+        issues = Issue.query.order_by(Issue.created_at.desc()).all()
+    else:
+        dept = current_user.department
+        if dept:
+            issues = Issue.query.filter_by(category=dept).order_by(Issue.created_at.desc()).all()
+        else:
+            issues = Issue.query.order_by(Issue.created_at.desc()).all()
     return render_template('admin_dept.html', issues=issues)
 
 @app.route('/admin/monitoring')

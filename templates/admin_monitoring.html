@@ -10,7 +10,7 @@
 </div>
 
 <div id="notificationBell" class="position-relative mb-4">
-    <button id="notifBellBtn" class="btn btn-outline-warning btn-sm text-white position-relative" style="display:none;">
+    <button id="notifBellBtn" class="btn btn-outline-warning btn-sm text-white position-relative">
         <span id="notifIcon">🔔</span>
         <span id="notifBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none;">
             <span id="notifCount">0</span>
@@ -62,7 +62,7 @@
                         <small class="text-secondary">{{ notif.created_at }}</small>
                     </div>
                     <div class="d-flex justify-content-between w-100 mt-1">
-                        <small class="text-info">Reported by: {{ notif.reporter }}</small>
+                        <small class="text-info">Reported by: {{ notif.issue.reporter.username if notif.issue and notif.issue.reporter else 'Unknown' }}</small>
                         <span class="badge bg-secondary">#{{ notif.issue_id }}</span>
                     </div>
                 </div>
@@ -165,11 +165,12 @@
 {% block scripts %}
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-    const unreadCount = {{ unread_count }};
+    let unreadCount = {{ unread_count }};
     const notifBellBtn = document.getElementById('notifBellBtn');
     const notifBadge = document.getElementById('notifBadge');
     const notifCountSpan = document.getElementById('notifCount');
     const unreadDisplay = document.getElementById('unreadDisplay');
+    let audioCtx = null;
 
     function updateBadge(count) {
         if (count > 0) {
@@ -179,29 +180,47 @@ document.addEventListener("DOMContentLoaded", function () {
         } else {
             notifBellBtn.style.display = 'inline-block';
             notifBadge.style.display = 'none';
+            notifCountSpan.textContent = '0';
         }
     }
 
     function playAlertSound() {
         try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = ctx.createOscillator();
-            const gainNode = ctx.createGain();
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
             oscillator.connect(gainNode);
-            gainNode.connect(ctx.destination);
+            gainNode.connect(audioCtx.destination);
             oscillator.frequency.value = 880;
-            gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
-            oscillator.start(ctx.currentTime);
-            oscillator.stop(ctx.currentTime + 0.3);
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+            oscillator.start(audioCtx.currentTime);
+            oscillator.stop(audioCtx.currentTime + 0.3);
         } catch(e) {
+            console.warn('Audio alert unavailable:', e);
         }
+    }
 
     function flashScreen() {
         const flash = document.createElement('div');
         flash.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,0,0,0.15);pointer-events:none;z-index:9999;';
         document.body.appendChild(flash);
         setTimeout(function() { flash.remove(); }, 600);
+    }
+
+    function escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
     }
 
     function pollNotifications() {
@@ -212,7 +231,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 const delta = newCount - unreadCount;
                 if (delta > 0) {
                     flashScreen();
+                    playAlertSound();
                 }
+                unreadCount = newCount;
                 updateBadge(newCount);
                 if (unreadDisplay) unreadDisplay.textContent = newCount;
             })
@@ -220,11 +241,15 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function loadNotifications() {
+        const feed = document.getElementById('notificationFeed');
+        if (!feed) return;
         fetch('/api/notifications')
             .then(res => res.json())
             .then(data => {
-                const feed = document.getElementById('notificationFeed');
-                if (!feed || data.length === 0) return;
+                if (!data || data.length === 0) {
+                    feed.innerHTML = '<div class="text-center text-muted py-4">No notifications yet.</div>';
+                    return;
+                }
 
                 let html = '';
                 data.forEach(function(n) {
@@ -233,22 +258,23 @@ document.addEventListener("DOMContentLoaded", function () {
                     if (n.severity === 'Critical') severityBadge = 'bg-danger';
                     else if (n.severity === 'High') severityBadge = 'bg-warning text-dark';
 
-                    html += '<div class="notification-item list-group-item-action ' + readClass + '" data-notif-id="' + n.id + '">' +
+                    html += '<div class="notification-item list-group-item-action ' + readClass + '" data-notif-id="' + escapeHtml(n.id) + '">' +
                         '<div class="d-flex w-100 justify-content-between">' +
                             '<div>' +
-                                '<span class="badge ' + severityBadge + ' me-1">' + n.severity + '</span>' +
-                                '<strong>' + n.message + '</strong>' +
+                                '<span class="badge ' + severityBadge + ' me-1">' + escapeHtml(n.severity) + '</span>' +
+                                '<strong>' + escapeHtml(n.message) + '</strong>' +
                             '</div>' +
-                            '<small class="text-secondary">' + n.created_at + '</small>' +
+                            '<small class="text-secondary">' + escapeHtml(n.created_at) + '</small>' +
                         '</div>' +
                         '<div class="d-flex justify-content-between w-100 mt-1">' +
-                            '<small class="text-info">Reported by: ' + n.reporter + '</small>' +
-                            '<span class="badge bg-secondary">#' + n.issue_id + '</span>' +
+                            '<small class="text-info">Reported by: ' + escapeHtml(n.reporter) + '</small>' +
+                            '<span class="badge bg-secondary">#' + escapeHtml(n.issue_id) + '</span>' +
                         '</div>' +
                     '</div>';
                 });
                 feed.innerHTML = html;
-            });
+            })
+            .catch(err => console.error('Notifications load error:', err));
     }
 
     document.getElementById('markAllReadBtn').addEventListener('click', function() {
@@ -256,14 +282,18 @@ document.addEventListener("DOMContentLoaded", function () {
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
+                    unreadCount = 0;
                     loadNotifications();
-                    pollNotifications();
-                    notifBadge.style.display = 'none';
+                    updateBadge(0);
+                    if (unreadDisplay) unreadDisplay.textContent = '0';
                 }
             });
     });
 
-    document.getElementById('refreshBtn').addEventListener('click', loadNotifications);
+    document.getElementById('refreshBtn').addEventListener('click', function() {
+        loadNotifications();
+        pollNotifications();
+    });
 
     updateBadge(unreadCount);
     pollNotifications();
