@@ -47,14 +47,16 @@ def init_db():
             if missing_cols:
                 print(f"⚠️ Missing columns: {missing_cols}")
                 # Try to add missing columns
+                from sqlalchemy import text
                 for col in missing_cols:
                     try:
                         if col == 'ai_confidence':
-                            db.engine.execute('ALTER TABLE issue ADD COLUMN ai_confidence FLOAT DEFAULT 0.0')
+                            db.session.execute(text('ALTER TABLE issue ADD COLUMN ai_confidence FLOAT DEFAULT 0.0'))
                         elif col == 'ai_reasoning':
-                            db.engine.execute('ALTER TABLE issue ADD COLUMN ai_reasoning TEXT')
+                            db.session.execute(text('ALTER TABLE issue ADD COLUMN ai_reasoning TEXT'))
                         elif col == 'ai_recommendations':
-                            db.engine.execute('ALTER TABLE issue ADD COLUMN ai_recommendations TEXT')
+                            db.session.execute(text('ALTER TABLE issue ADD COLUMN ai_recommendations TEXT'))
+                        db.session.commit()
                         print(f"✓ Added column: {col}")
                     except Exception as e:
                         print(f"Could not add {col}: {e}")
@@ -112,6 +114,7 @@ class Issue(db.Model):
             'severity': self.severity,
             'ai_confidence': self.ai_confidence,
             'ai_reasoning': self.ai_reasoning,
+            'ai_recommendations': self.ai_recommendations,
             'status': self.status,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S'),
             'reporter': self.reporter.username if self.reporter else 'Unknown'
@@ -148,10 +151,14 @@ def register():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     if request.method == 'POST':
-        username = request.form.get('username').strip()
-        email = request.form.get('email').strip().lower()
+        username = (request.form.get('username') or '').strip()
+        email = (request.form.get('email') or '').strip().lower()
         password = request.form.get('password')
         role = request.form.get('role', 'Citizen')
+        
+        if not username or not email or not password:
+            flash('Username, email, and password are required.', 'warning')
+            return redirect(url_for('register'))
 
         if User.query.filter_by(email=email).first():
             flash('Email address is already registered.', 'warning')
@@ -174,8 +181,12 @@ def login():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     if request.method == 'POST':
-        email = request.form.get('email').strip().lower()
-        password = request.form.get('password')
+        email = (request.form.get('email') or '').strip().lower()
+        password = request.form.get('password') or ''
+        
+        if not email or not password:
+            flash('Email and password are required.', 'warning')
+            return redirect(url_for('login'))
         user = User.query.filter_by(email=email).first()
 
         if user and user.check_password(password):
