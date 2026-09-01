@@ -4,25 +4,23 @@ from flask import Flask, render_template, redirect, url_for, flash, request, jso
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from gemini_ai import get_analyzer
 
-# Load environment variables from .env file
-from dotenv import load_dotenv
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'civictrack-key-9982314')
 
-# Database configuration - support PostgreSQL or SQLite
 database_url = os.environ.get('DATABASE_URL')
 
 if database_url:
-    # PostgreSQL on Render
     if database_url.startswith("postgres://"):
         database_url = database_url.replace("postgres://", "postgresql://", 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 else:
-    # Fallback to SQLite for local development or if DATABASE_URL not set
     basedir = os.path.abspath(os.path.dirname(__file__))
     db_path = os.path.join(basedir, 'civictrack_v2.db')
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
@@ -33,26 +31,24 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# Initialize database on app startup
+_db_initialized = False
+
 def init_db():
-    """Create database tables if they don't exist"""
-    with app.app_context():
-        try:
+    global _db_initialized
+    if _db_initialized:
+        return
+    try:
+        with app.app_context():
             db.create_all()
-            print("Database tables created/verified")
-        except Exception as e:
-            print(f"Database initialization error: {e}")
+        _db_initialized = True
+        print("Database initialized")
+    except Exception as e:
+        print(f"Database init error: {e}")
 
-# Call init_db on startup (only if DATABASE_URL is set)
-try:
-    if database_url:
-        init_db()
-    else:
-        print("WARNING: DATABASE_URL not set, skipping init_db")
-except Exception as e:
-    print(f"Database init failed on startup: {e}")
+@app.before_request
+def ensure_db():
+    init_db()
 
-# Models
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False, index=True)
@@ -77,9 +73,9 @@ class Issue(db.Model):
     latitude = db.Column(db.Float, nullable=True)
     longitude = db.Column(db.Float, nullable=True)
     severity = db.Column(db.String(20), default='Medium', index=True)
-    ai_confidence = db.Column(db.Float, default=0.0)  # AI confidence score
-    ai_reasoning = db.Column(db.Text, nullable=True)  # AI explanation
-    ai_recommendations = db.Column(db.Text, nullable=True)  # Stored as JSON string
+    ai_confidence = db.Column(db.Float, default=0.0)
+    ai_reasoning = db.Column(db.Text, nullable=True)
+    ai_recommendations = db.Column(db.Text, nullable=True)
     status = db.Column(db.String(20), default='Pending', index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
@@ -104,7 +100,10 @@ class Issue(db.Model):
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    try:
+        return User.query.get(int(user_id))
+    except:
+        return None
 
 def calculate_ai_severity(category, description):
     desc = description.lower()
@@ -119,7 +118,17 @@ def calculate_ai_severity(category, description):
         return 'Medium'
     return 'Low'
 
-# Public Routes
+def get_analyzer():
+    try:
+        from gemini_ai import get_analyzer as _get
+        return _get()
+    except:
+        return None
+
+@app.route('/health')
+def health():
+    return jsonify({'status': 'ok'})
+
 @app.route('/')
 def index():
     recent_issues = Issue.query.order_by(Issue.created_at.desc()).limit(6).all()
@@ -205,23 +214,24 @@ def report():
         ai_reasoning = ''
         ai_recommendations = ''
 
-        try:
-            analyzer = get_analyzer()
-            ai_analysis = analyzer.analyze_incident_severity(
-                category=category,
-                description=description,
-                location=location
-            )
-            severity = ai_analysis.get('severity', severity)
-            ai_confidence = ai_analysis.get('confidence', 0.0)
-            ai_reasoning = ai_analysis.get('reasoning', '')
-            recs = ai_analysis.get('recommendations', [])
-            if isinstance(recs, list):
-                ai_recommendations = ', '.join(recs)
-            else:
-                ai_recommendations = str(recs) if recs else ''
-        except Exception as e:
-            print(f"AI analysis error: {e}")
+        analyzer = get_analyzer()
+        if analyzer:
+            try:
+                ai_analysis = analyzer.analyze_incident_severity(
+                    category=category,
+                    description=description,
+                    location=location
+                )
+                severity = ai_analysis.get('severity', severity)
+                ai_confidence = ai_analysis.get('confidence', 0.0)
+                ai_reasoning = ai_analysis.get('reasoning', '')
+                recs = ai_analysis.get('recommendations', [])
+                if isinstance(recs, list):
+                    ai_recommendations = ', '.join(recs)
+                else:
+                    ai_recommendations = str(recs) if recs else ''
+            except Exception as e:
+                print(f"AI analysis error: {e}")
 
         new_issue = Issue(
             title=title,
@@ -257,7 +267,6 @@ def dashboard():
     
     return render_template('dashboard.html', issues=issues, pending=pending, in_progress=in_progress, resolved=resolved)
 
-# Admin Dashboard Routes matching Explorer files
 @app.route('/admin/super')
 @login_required
 def admin_super():
@@ -323,7 +332,6 @@ def update_issue_status(issue_id):
         return redirect(url_for('admin_dept'))
     return redirect(url_for('dashboard'))
 
-# REST API Endpoints
 @app.route('/api/incidents', methods=['GET'])
 def api_incidents():
     incidents = Issue.query.order_by(Issue.created_at.desc()).all()
@@ -340,16 +348,21 @@ def api_analytics():
 
 @app.route('/api/issue/<int:issue_id>/recommendations', methods=['GET'])
 def get_issue_recommendations(issue_id):
-    """Get AI-powered recommendations for resolving an incident"""
     issue = Issue.query.get_or_404(issue_id)
     
     analyzer = get_analyzer()
-    recommendations = analyzer.generate_resolution_guidance(
-        issue_id=issue.id,
-        category=issue.category,
-        description=issue.description,
-        severity=issue.severity
-    )
+    if analyzer:
+        try:
+            recommendations = analyzer.generate_resolution_guidance(
+                issue_id=issue.id,
+                category=issue.category,
+                description=issue.description,
+                severity=issue.severity
+            )
+        except:
+            recommendations = {"recommendations": ["Contact relevant department"], "timeline": "Depends on severity"}
+    else:
+        recommendations = {"recommendations": ["Contact relevant department"], "timeline": "Depends on severity"}
     
     return jsonify({
         'issue_id': issue.id,
@@ -360,18 +373,22 @@ def get_issue_recommendations(issue_id):
 
 @app.route('/api/insights', methods=['GET'])
 def get_system_insights():
-    """Get city-wide AI insights from incident patterns"""
     limit = request.args.get('limit', 20, type=int)
     recent_issues = Issue.query.order_by(Issue.created_at.desc()).limit(limit).all()
     
     analyzer = get_analyzer()
-    insights = analyzer.extract_insights_from_batch(
-        issues=[i.to_dict() for i in recent_issues]
-    )
+    if analyzer:
+        try:
+            insights = analyzer.extract_insights_from_batch(
+                issues=[i.to_dict() for i in recent_issues]
+            )
+        except:
+            insights = {"patterns": [], "hotspots": [], "recommendations": []}
+    else:
+        insights = {"patterns": [], "hotspots": [], "recommendations": []}
     
     return jsonify(insights)
 
-# Error handlers
 @app.errorhandler(404)
 def not_found(error):
     return render_template('error.html', code=404, message='Page not found'), 404
