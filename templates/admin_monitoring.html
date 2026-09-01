@@ -1,0 +1,273 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><span class="badge bg-info text-dark me-2">LIVE</span>Monitoring Dashboard</h2>
+    <div>
+        <button id="markAllReadBtn" class="btn btn-outline-info btn-sm text-white">Mark All Read</button>
+        <button id="refreshBtn" class="btn btn-outline-secondary btn-sm text-white">Refresh</button>
+    </div>
+</div>
+
+<div id="notificationBell" class="position-relative mb-4">
+    <button id="notifBellBtn" class="btn btn-outline-warning btn-sm text-white position-relative" style="display:none;">
+        <span id="notifIcon">🔔</span>
+        <span id="notifBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none;">
+            <span id="notifCount">0</span>
+        </span>
+    </button>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="glass-card p-3 text-center">
+            <h3 class="fw-bold text-warning">{{ notifications|length }}</h3>
+            <p class="text-secondary mb-0 small">Total Alerts</p>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="glass-card p-3 text-center">
+            <h3 class="fw-bold text-danger" id="unreadDisplay">{{ unread_count }}</h3>
+            <p class="text-secondary mb-0 small">Unread Critical</p>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="glass-card p-3 text-center">
+            <h3 class="fw-bold text-danger">{{ critical }}</h3>
+            <p class="text-secondary mb-0 small">Critical Incidents</p>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="glass-card p-3 text-center">
+            <h3 class="fw-bold text-warning">{{ pending }}</h3>
+            <p class="text-secondary mb-0 small">Pending Resolution</p>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-lg-6 mb-3">
+        <div class="glass-card p-4">
+            <h5 class="mb-3 text-warning">Real-Time Notification Feed</h5>
+            <div id="notificationFeed" class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
+                {% for notif in notifications %}
+                <div class="notification-item list-group-item-action {% if not notif.is_read %}bg-warning bg-opacity-10 border-warning{% endif %}" data-notif-id="{{ notif.id }}">
+                    <div class="d-flex w-100 justify-content-between">
+                        <div>
+                            <span class="badge {% if notif.severity == 'Critical' %}bg-danger{% elif notif.severity == 'High' %}bg-warning text-dark{% else %}bg-info text-dark{% endif %} me-1">
+                                {{ notif.severity }}
+                            </span>
+                            <strong>{{ notif.message }}</strong>
+                        </div>
+                        <small class="text-secondary">{{ notif.created_at }}</small>
+                    </div>
+                    <div class="d-flex justify-content-between w-100 mt-1">
+                        <small class="text-info">Reported by: {{ notif.reporter }}</small>
+                        <span class="badge bg-secondary">#{{ notif.issue_id }}</span>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">No notifications yet.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6 mb-3">
+        <div class="glass-card p-4">
+            <h5 class="mb-3 text-info">Recent Case Registrations</h5>
+            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                <table class="table table-dark table-hover align-middle table-sm">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Category</th>
+                            <th>Details</th>
+                            <th>Severity</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for issue in issues %}
+                        <tr>
+                            <td><strong>#{{ issue.id }}</strong></td>
+                            <td>{{ issue.category }}</td>
+                            <td>
+                                <div>{{ issue.title }}</div>
+                                <small class="text-secondary">{{ issue.location }}</small>
+                            </td>
+                            <td>
+                                <span class="badge {% if issue.severity == 'Critical' %}bg-danger{% elif issue.severity == 'High' %}bg-warning text-dark{% else %}bg-info text-dark{% endif %}">
+                                    {{ issue.severity }}
+                                </span>
+                            </td>
+                            <td><span class="badge bg-secondary">{{ issue.status }}</span></td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="5" class="text-center text-muted">No cases registered yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="glass-card p-4">
+    <h5 class="mb-3 text-info">Quick Case Lookup</h5>
+    <div class="table-responsive">
+        <table class="table table-dark table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>Case ID</th>
+                    <th>Title</th>
+                    <th>Category</th>
+                    <th>Location</th>
+                    <th>Reporter</th>
+                    <th>Severity</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for issue in issues %}
+                <tr>
+                    <td><strong>#{{ issue.id }}</strong></td>
+                    <td>{{ issue.title }}</td>
+                    <td>{{ issue.category }}</td>
+                    <td>{{ issue.location }}</td>
+                    <td>{{ issue.reporter.username if issue.reporter else 'Unknown' }}</td>
+                    <td>
+                        <span class="badge {% if issue.severity == 'Critical' %}bg-danger{% elif issue.severity == 'High' %}bg-warning text-dark{% else %}bg-info text-dark{% endif %}">
+                            {{ issue.severity }}
+                        </span>
+                    </td>
+                    <td><span class="badge bg-secondary">{{ issue.status }}</span></td>
+                    <td>
+                        <form action="{{ url_for('update_issue_status', issue_id=issue.id) }}" method="POST" class="d-flex gap-2">
+                            <select name="status" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                <option value="Pending" {% if issue.status == 'Pending' %}selected{% endif %}>Pending</option>
+                                <option value="In Progress" {% if issue.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                                <option value="Resolved" {% if issue.status == 'Resolved' %}selected{% endif %}>Resolved</option>
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-outline-info">Save</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" class="text-center text-muted">No cases registered yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const unreadCount = {{ unread_count }};
+    const notifBellBtn = document.getElementById('notifBellBtn');
+    const notifBadge = document.getElementById('notifBadge');
+    const notifCountSpan = document.getElementById('notifCount');
+    const unreadDisplay = document.getElementById('unreadDisplay');
+
+    function updateBadge(count) {
+        if (count > 0) {
+            notifBellBtn.style.display = 'inline-block';
+            notifBadge.style.display = 'inline-block';
+            notifCountSpan.textContent = count;
+        } else {
+            notifBellBtn.style.display = 'inline-block';
+            notifBadge.style.display = 'none';
+        }
+    }
+
+    function playAlertSound() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            oscillator.frequency.value = 880;
+            gainNode.gain.setValueAtTime(0.1, ctx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+            oscillator.start(ctx.currentTime);
+            oscillator.stop(ctx.currentTime + 0.3);
+        } catch(e) {
+        }
+
+    function flashScreen() {
+        const flash = document.createElement('div');
+        flash.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,0,0,0.15);pointer-events:none;z-index:9999;';
+        document.body.appendChild(flash);
+        setTimeout(function() { flash.remove(); }, 600);
+    }
+
+    function pollNotifications() {
+        fetch('/api/notifications/unread-count')
+            .then(res => res.json())
+            .then(data => {
+                const newCount = data.unread_count;
+                const delta = newCount - unreadCount;
+                if (delta > 0) {
+                    flashScreen();
+                }
+                updateBadge(newCount);
+                if (unreadDisplay) unreadDisplay.textContent = newCount;
+            })
+            .catch(err => console.error('Notification poll error:', err));
+    }
+
+    function loadNotifications() {
+        fetch('/api/notifications')
+            .then(res => res.json())
+            .then(data => {
+                const feed = document.getElementById('notificationFeed');
+                if (!feed || data.length === 0) return;
+
+                let html = '';
+                data.forEach(function(n) {
+                    const readClass = n.is_read ? '' : 'bg-warning bg-opacity-10 border-warning';
+                    let severityBadge = 'bg-info text-dark';
+                    if (n.severity === 'Critical') severityBadge = 'bg-danger';
+                    else if (n.severity === 'High') severityBadge = 'bg-warning text-dark';
+
+                    html += '<div class="notification-item list-group-item-action ' + readClass + '" data-notif-id="' + n.id + '">' +
+                        '<div class="d-flex w-100 justify-content-between">' +
+                            '<div>' +
+                                '<span class="badge ' + severityBadge + ' me-1">' + n.severity + '</span>' +
+                                '<strong>' + n.message + '</strong>' +
+                            '</div>' +
+                            '<small class="text-secondary">' + n.created_at + '</small>' +
+                        '</div>' +
+                        '<div class="d-flex justify-content-between w-100 mt-1">' +
+                            '<small class="text-info">Reported by: ' + n.reporter + '</small>' +
+                            '<span class="badge bg-secondary">#' + n.issue_id + '</span>' +
+                        '</div>' +
+                    '</div>';
+                });
+                feed.innerHTML = html;
+            });
+    }
+
+    document.getElementById('markAllReadBtn').addEventListener('click', function() {
+        fetch('/api/notifications/read', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    loadNotifications();
+                    pollNotifications();
+                    notifBadge.style.display = 'none';
+                }
+            });
+    });
+
+    document.getElementById('refreshBtn').addEventListener('click', loadNotifications);
+
+    updateBadge(unreadCount);
+    pollNotifications();
+    setInterval(pollNotifications, 8000);
+});
+</script>
+{% endblock %}

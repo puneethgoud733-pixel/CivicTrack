@@ -98,6 +98,30 @@ class Issue(db.Model):
             'reporter': self.reporter.username if self.reporter else 'Unknown'
         }
 
+class Notification(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    issue_id = db.Column(db.Integer, db.ForeignKey('issue.id'), nullable=False, index=True)
+    recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    message = db.Column(db.Text, nullable=False)
+    severity = db.Column(db.String(20), nullable=False)
+    is_read = db.Column(db.Boolean, default=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    issue = db.relationship('Issue', backref='notifications', lazy='joined')
+    recipient = db.relationship('User', backref='notifications', lazy='joined')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'issue_id': self.issue_id,
+            'message': self.message,
+            'severity': self.severity,
+            'is_read': self.is_read,
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            'issue_title': self.issue.title if self.issue else '',
+            'reporter': self.issue.reporter.username if self.issue and self.issue.reporter else 'Unknown'
+        }
+
 @login_manager.user_loader
 def load_user(user_id):
     try:
@@ -124,6 +148,27 @@ def get_analyzer():
         return _get()
     except:
         return None
+
+def create_notifications_for_issue(issue):
+    admins = User.query.filter(User.role.in_(['Admin', 'SuperAdmin'])).all()
+    severity_labels = {
+        'Critical': 'CRITICAL',
+        'High': 'HIGH',
+        'Medium': 'MEDIUM',
+        'Low': 'LOW'
+    }
+    label = severity_labels.get(issue.severity, issue.severity.upper())
+    for admin in admins:
+        if admin.role == 'Admin' and issue.category != admin.department and admin.department is not None:
+            continue
+        notif = Notification(
+            issue_id=issue.id,
+            recipient_id=admin.id,
+            message=f"[{label}] New incident reported: {issue.title}",
+            severity=issue.severity
+        )
+        db.session.add(notif)
+    db.session.commit()
 
 @app.route('/health')
 def health():
@@ -248,6 +293,7 @@ def report():
         )
         db.session.add(new_issue)
         db.session.commit()
+        create_notifications_for_issue(new_issue)
 
         flash(f'Incident submitted successfully! AI Analysis: {severity} severity', 'success')
         return redirect(url_for('dashboard'))
@@ -290,6 +336,56 @@ def admin_dept():
     
     issues = Issue.query.order_by(Issue.created_at.desc()).all()
     return render_template('admin_dept.html', issues=issues)
+
+@app.route('/admin/monitoring')
+@login_required
+def admin_monitoring():
+    if current_user.role not in ['Admin', 'SuperAdmin']:
+        flash('Access restricted to administrative officers.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    all_issues = Issue.query.order_by(Issue.created_at.desc()).limit(30).all()
+    notifications = Notification.query.filter_by(recipient_id=current_user.id).order_by(Notification.created_at.desc()).limit(20).all()
+    unread_count = Notification.query.filter_by(recipient_id=current_user.id, is_read=False).count()
+    critical_count = sum(1 for i in all_issues if i.severity == 'Critical')
+    pending_count = sum(1 for i in all_issues if i.status == 'Pending')
+
+    return render_template(
+        'admin_monitoring.html',
+        issues=all_issues,
+        notifications=notifications,
+        unread_count=unread_count,
+        critical=critical_count,
+        pending=pending_count
+    )
+
+@app.route('/api/notifications')
+@login_required
+def api_notifications():
+    if current_user.role not in ['Admin', 'SuperAdmin']:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    notifications = Notification.query.filter_by(recipient_id=current_user.id).order_by(Notification.created_at.desc()).limit(20).all()
+    return jsonify([n.to_dict() for n in notifications])
+
+@app.route('/api/notifications/unread-count')
+@login_required
+def api_notifications_unread_count():
+    if current_user.role not in ['Admin', 'SuperAdmin']:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    count = Notification.query.filter_by(recipient_id=current_user.id, is_read=False).count()
+    return jsonify({'unread_count': count})
+
+@app.route('/api/notifications/read', methods=['POST'])
+@login_required
+def api_notifications_read():
+    if current_user.role not in ['Admin', 'SuperAdmin']:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    Notification.query.filter_by(recipient_id=current_user.id, is_read=False).update({'is_read': True})
+    db.session.commit()
+    return jsonify({'success': True})
 
 @app.route('/admin/user/<int:user_id>/change-role', methods=['POST'])
 @login_required

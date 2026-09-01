@@ -28,9 +28,12 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto align-items-center">
                     <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}">Home</a></li>
-                    {% if current_user.is_authenticated %}
-                        <li class="nav-item"><a class="nav-link" href="{{ url_for('report') }}">Report Hazard</a></li>
-                        <li class="nav-item"><a class="nav-link" href="{{ url_for('dashboard') }}">Control Center</a></li>
+                        {% if current_user.is_authenticated %}
+                            <li class="nav-item"><a class="nav-link" href="{{ url_for('report') }}">Report Hazard</a></li>
+                            {% if current_user.role in ['Admin', 'SuperAdmin'] %}
+                            <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_monitoring') }}">Monitoring Dashboard</a></li>
+                            {% endif %}
+                            <li class="nav-item"><a class="nav-link" href="{{ url_for('dashboard') }}">Control Center</a></li>
                         <li class="nav-item ms-lg-3">
                             <a class="btn btn-outline-danger btn-sm text-white px-3" href="{{ url_for('logout') }}">Logout ({{ current_user.username }})</a>
                         </li>
