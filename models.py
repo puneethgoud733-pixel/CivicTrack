@@ -24,6 +24,7 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     full_name = db.Column(db.String(100), nullable=False)
+    department=db.Column(db.String(100), nullable=True)
     
     # Relationships
     roles = db.relationship('Role', secondary=user_roles, backref=db.backref('users', lazy='dynamic'))
