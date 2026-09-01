@@ -2,45 +2,47 @@
 {% block content %}
 <h2>System & User Access Hierarchy</h2>
 
-<div class="card" style="margin-top: 1.5rem;">
+<div class="glass-card p-4" style="margin-top: 1.5rem;">
     <h3>User Hierarchy & Department Assignments</h3>
-    <table>
-        <thead>
-            <tr>
-                <th>User</th>
-                <th>Email</th>
-                <th>Current Role</th>
-                <th>Assigned Dept</th>
-                <th>Role Control</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for user in users %}
-            <tr>
-                <td>{{ user.username }}</td>
-                <td>{{ user.email }}</td>
-                <td><strong>{{ user.role }}</strong></td>
-                <td>{{ user.department or 'N/A' }}</td>
-                <td>
-                    <form action="{{ url_for('change_role', user_id=user.id) }}" method="POST" style="flex-direction: row; gap: 0.5rem;">
-                        <select name="role" style="padding: 0.3rem;">
-                            <option value="PUBLIC" {% if user.role == 'PUBLIC' %}selected{% endif %}>Public User</option>
-                            <option value="DEPT_ADMIN" {% if user.role == 'DEPT_ADMIN' %}selected{% endif %}>Dept Admin</option>
-                            <option value="SUPER_ADMIN" {% if user.role == 'SUPER_ADMIN' %}selected{% endif %}>Super Admin</option>
-                        </select>
-                        <select name="department" style="padding: 0.3rem;">
-                            <option value="">None</option>
-                            <option value="Roads" {% if user.department == 'Roads' %}selected{% endif %}>Roads</option>
-                            <option value="Sanitation" {% if user.department == 'Sanitation' %}selected{% endif %}>Sanitation</option>
-                            <option value="Water" {% if user.department == 'Water' %}selected{% endif %}>Water</option>
-                            <option value="Electricity" {% if user.department == 'Electricity' %}selected{% endif %}>Electricity</option>
-                        </select>
-                        <button type="submit" style="padding: 0.3rem 0.75rem; font-size: 0.8rem;">Update</button>
-                    </form>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="table-responsive">
+        <table class="table table-dark table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Email</th>
+                    <th>Current Role</th>
+                    <th>Assigned Dept</th>
+                    <th>Role Control</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.username }}</td>
+                    <td>{{ user.email }}</td>
+                    <td><strong>{{ user.role }}</strong></td>
+                    <td>{{ user.department or 'N/A' }}</td>
+                    <td>
+                        <form action="{{ url_for('change_role', user_id=user.id) }}" method="POST" class="d-flex gap-2">
+                            <select name="role" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                <option value="Citizen" {% if user.role == 'Citizen' %}selected{% endif %}>Citizen</option>
+                                <option value="Admin" {% if user.role == 'Admin' %}selected{% endif %}>Dept Admin</option>
+                                <option value="SuperAdmin" {% if user.role == 'SuperAdmin' %}selected{% endif %}>Super Admin</option>
+                            </select>
+                            <select name="department" class="form-select form-select-sm bg-dark text-white border-secondary">
+                                <option value="">None</option>
+                                <option value="Roads" {% if user.department == 'Roads' %}selected{% endif %}>Roads</option>
+                                <option value="Sanitation" {% if user.department == 'Sanitation' %}selected{% endif %}>Sanitation</option>
+                                <option value="Water" {% if user.department == 'Water' %}selected{% endif %}>Water</option>
+                                <option value="Electricity" {% if user.department == 'Electricity' %}selected{% endif %}>Electricity</option>
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-outline-info">Update</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
 {% endblock %}

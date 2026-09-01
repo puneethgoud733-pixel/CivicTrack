@@ -38,47 +38,16 @@ def init_db():
     """Create database tables if they don't exist"""
     with app.app_context():
         try:
-            # Create all tables
             db.create_all()
-            print("✓ Database tables created/verified")
-            
-            # Verify Issue table has all AI columns
-            from sqlalchemy import inspect
-            inspector = inspect(db.engine)
-            columns = [col['name'] for col in inspector.get_columns('issue')]
-            
-            required_cols = ['ai_confidence', 'ai_reasoning', 'ai_recommendations']
-            missing_cols = [col for col in required_cols if col not in columns]
-            
-            if missing_cols:
-                print(f"⚠️ Missing columns: {missing_cols}")
-                # Try to add missing columns
-                from sqlalchemy import text
-                for col in missing_cols:
-                    try:
-                        if col == 'ai_confidence':
-                            db.session.execute(text('ALTER TABLE issue ADD COLUMN ai_confidence FLOAT DEFAULT 0.0'))
-                        elif col == 'ai_reasoning':
-                            db.session.execute(text('ALTER TABLE issue ADD COLUMN ai_reasoning TEXT'))
-                        elif col == 'ai_recommendations':
-                            db.session.execute(text('ALTER TABLE issue ADD COLUMN ai_recommendations TEXT'))
-                        db.session.commit()
-                        print(f"✓ Added column: {col}")
-                    except Exception as e:
-                        print(f"Could not add {col}: {e}")
-            else:
-                print("✓ All AI columns present")
-                
+            print("Database tables created/verified")
         except Exception as e:
-            print(f"❌ Database initialization error: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"Database initialization error: {e}")
 
 # Call init_db on startup
 try:
     init_db()
 except Exception as e:
-    print(f"⚠️ Database init failed on startup: {e}")
+    print(f"Database init failed on startup: {e}")
 
 # Models
 class User(UserMixin, db.Model):
@@ -87,6 +56,7 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(20), default='Citizen')
+    department = db.Column(db.String(50), nullable=True)
     issues = db.relationship('Issue', backref='reporter', lazy=True)
 
     def set_password(self, password):
@@ -226,15 +196,30 @@ def report():
         location = request.form.get('location')
         lat = request.form.get('latitude', type=float)
         lng = request.form.get('longitude', type=float)
-        
-        # Use Gemini AI for intelligent severity assessment
-        analyzer = get_analyzer()
-        ai_analysis = analyzer.analyze_incident_severity(
-            category=category,
-            description=description,
-            location=location
-        )
-        
+
+        severity = calculate_ai_severity(category, description)
+        ai_confidence = 0.0
+        ai_reasoning = ''
+        ai_recommendations = ''
+
+        try:
+            analyzer = get_analyzer()
+            ai_analysis = analyzer.analyze_incident_severity(
+                category=category,
+                description=description,
+                location=location
+            )
+            severity = ai_analysis.get('severity', severity)
+            ai_confidence = ai_analysis.get('confidence', 0.0)
+            ai_reasoning = ai_analysis.get('reasoning', '')
+            recs = ai_analysis.get('recommendations', [])
+            if isinstance(recs, list):
+                ai_recommendations = ', '.join(recs)
+            else:
+                ai_recommendations = str(recs) if recs else ''
+        except Exception as e:
+            print(f"AI analysis error: {e}")
+
         new_issue = Issue(
             title=title,
             category=category,
@@ -242,15 +227,15 @@ def report():
             location=location,
             latitude=lat,
             longitude=lng,
-            severity=ai_analysis.get('severity', 'Medium'),
-            ai_confidence=ai_analysis.get('confidence', 0.0),
-            ai_reasoning=ai_analysis.get('reasoning', ''),
+            severity=severity,
+            ai_confidence=ai_confidence,
+            ai_reasoning=ai_reasoning,
+            ai_recommendations=ai_recommendations,
             user_id=current_user.id
         )
         db.session.add(new_issue)
         db.session.commit()
-        
-        severity = ai_analysis.get('severity', 'Medium')
+
         flash(f'Incident submitted successfully! AI Analysis: {severity} severity', 'success')
         return redirect(url_for('dashboard'))
     return render_template('report.html')
@@ -293,6 +278,27 @@ def admin_dept():
     
     issues = Issue.query.order_by(Issue.created_at.desc()).all()
     return render_template('admin_dept.html', issues=issues)
+
+@app.route('/admin/user/<int:user_id>/change-role', methods=['POST'])
+@login_required
+def change_role(user_id):
+    if current_user.role != 'SuperAdmin':
+        flash('Only Super Admins can change user roles.', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    user = User.query.get_or_404(user_id)
+    new_role = request.form.get('role', 'Citizen')
+    new_department = request.form.get('department') or None
+    
+    if new_role in ['Citizen', 'Admin', 'SuperAdmin']:
+        user.role = new_role
+        user.department = new_department
+        db.session.commit()
+        flash(f'User {user.username} role updated to {new_role}.', 'success')
+    else:
+        flash('Invalid role specified.', 'danger')
+    
+    return redirect(url_for('admin_super'))
 
 @app.route('/issue/<int:issue_id>/update', methods=['POST'])
 @login_required

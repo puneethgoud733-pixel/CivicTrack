@@ -36,7 +36,7 @@
                     <th>Category</th>
                     <th>Severity</th>
                     <th>Status</th>
-                    {% if current_user.role == 'Admin' %}<th>Action</th>{% endif %}
+                    {% if current_user.role in ['Admin', 'SuperAdmin'] %}<th>Action</th>{% endif %}
                 </tr>
             </thead>
             <tbody>
@@ -51,7 +51,7 @@
                         </span>
                     </td>
                     <td><span class="badge bg-secondary">{{ issue.status }}</span></td>
-                    {% if current_user.role == 'Admin' %}
+                    {% if current_user.role in ['Admin', 'SuperAdmin'] %}
                     <td>
                         <form action="{{ url_for('update_issue_status', issue_id=issue.id) }}" method="POST" class="d-flex gap-2">
                             <select name="status" class="form-select form-select-sm bg-dark text-white border-secondary">
